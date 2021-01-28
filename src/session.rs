@@ -17,7 +17,7 @@ pub use anyhow::Error;
 pub type Result<T = ()> = std::result::Result<T, Error>;
 
 pub trait SQLxSessionAuth<D> {
-    fn load_user(userid: i64, pool: &PoolConnection<sqlx::Postgres>) -> Result<D>;
+    fn load_user(userid: i64, pool: &mut PoolConnection<sqlx::Postgres>) -> Result<D>;
     fn is_authenticated(&self) -> bool;
     fn is_active(&self) -> bool;
     fn is_anonymous(&self) -> bool;
