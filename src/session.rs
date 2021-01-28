@@ -92,7 +92,7 @@ where
             .expect("Session data unexpectedly missing")
             .lock();
 
-        let value = serde_json::to_string(&id).unwrap_or("".to_string());
+        let value = serde_json::to_string(&id).unwrap_or_else(|_| "".to_string());
         if instance.data.get("user_auth_session_id") != Some(&value) {
             instance.data.insert("user_auth_session_id".into(), value);
         }
@@ -187,6 +187,15 @@ where
     poll: Option<PgPool>,
     anonymous_user_id: Option<i64>,
     phantom: PhantomData<D>,
+}
+
+impl<D> Default for SqlxSessionAuthFairing<D>
+where
+    D: 'static + Sync + Send + SQLxSessionAuth<D>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<D> SqlxSessionAuthFairing<D>
