@@ -16,8 +16,9 @@ pub use anyhow::Error;
 /// An anyhow::Result with default return type of ()
 pub type Result<T = ()> = std::result::Result<T, Error>;
 
+#[rocket::async_trait]
 pub trait SQLxSessionAuth<D> {
-    fn load_user(userid: i64, pool: &mut PoolConnection<sqlx::Postgres>) -> Result<D>;
+    async fn load_user(userid: i64, pool: &mut PoolConnection<sqlx::Postgres>) -> Result<D>;
     fn is_authenticated(&self) -> bool;
     fn is_active(&self) -> bool;
     fn is_anonymous(&self) -> bool;
@@ -154,17 +155,17 @@ where
                 let uid = current_id.unwrap();
 
                 if let Some(client) = &authpool.client {
-                    let guard: PoolConnection<sqlx::Postgres> = client.acquire().await.unwrap();
+                    let mut guard: PoolConnection<sqlx::Postgres> = client.acquire().await.unwrap();
 
-                    match D::load_user(uid, &guard) {
+                    match D::load_user(uid, &mut guard).await {
                         Ok(user) => Some(user),
                         Err(_) => None,
                     }
                 } else {
-                    let guard: PoolConnection<sqlx::Postgres> =
+                    let mut guard: PoolConnection<sqlx::Postgres> =
                         store.client.acquire().await.unwrap();
 
-                    match D::load_user(uid, &guard) {
+                    match D::load_user(uid, &mut guard).await {
                         Ok(user) => Some(user),
                         Err(_) => None,
                     }
