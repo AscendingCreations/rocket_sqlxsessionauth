@@ -6,10 +6,7 @@ use rocket::{
     try_outcome, Request, Rocket, State,
 };
 use rocket_sqlxsession::{SQLxSessionID, SQLxSessionStore};
-use sqlx::{
-    pool::PoolConnection,
-    postgres::PgPool,
-};
+use sqlx::{pool::PoolConnection, postgres::PgPool};
 use std::marker::PhantomData;
 
 pub use anyhow::Error;

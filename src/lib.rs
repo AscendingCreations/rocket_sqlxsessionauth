@@ -1,2 +1,2 @@
 mod session;
-pub use session::{SqlxSessionAuthFairing, SQLxSessionAuth, SQLxSessionAuthPool, SQLxAuth};
+pub use session::{SQLxAuth, SQLxSessionAuth, SQLxSessionAuthPool, SqlxSessionAuthFairing};
