@@ -31,10 +31,10 @@ impl Rights {
         Rights::NoneOf(data.iter().cloned().collect())
     }
 
-    #[async_recursion(?Send)]
+    #[async_recursion()]
     pub async fn evaluate(
         &self,
-        user: &dyn HasPermission,
+        user: &(dyn HasPermission + Sync),
         db: &Option<&mut PoolConnection<sqlx::Postgres>>,
     ) -> bool {
         match self {
@@ -79,7 +79,7 @@ impl Rights {
 
 pub struct Auth<D>
 where
-    D: 'static + SQLxSessionAuth<D> + HasPermission,
+    D: 'static +  SQLxSessionAuth<D> + HasPermission,
 {
     pub rights: Rights,
     pub auth_required: bool,
@@ -110,7 +110,7 @@ where
         user: &D,
         method: &Method,
         db: Option<&mut PoolConnection<sqlx::Postgres>>,
-    ) -> bool {
+    ) -> bool where D: HasPermission +  SQLxSessionAuth<D> + Sync {
         if self.auth_required && !user.is_authenticated() {
             return false;
         }
