@@ -1,8 +1,8 @@
 use crate::SQLxSessionAuth;
+use async_recursion::async_recursion;
 use rocket::http::Method;
 use sqlx::pool::PoolConnection;
 use std::marker::PhantomData;
-use async_recursion::async_recursion;
 
 #[rocket::async_trait]
 pub trait HasPermission {
@@ -40,34 +40,34 @@ impl Rights {
         match self {
             Self::All(rights) => {
                 let mut all = true;
-                    for r in rights.iter() {
-                        if !r.evaluate(user, &db).await {
-                            all = false;
-                            break;
-                        }
+                for r in rights.iter() {
+                    if !r.evaluate(user, &db).await {
+                        all = false;
+                        break;
                     }
+                }
 
                 all
             }
             Self::Any(rights) => {
                 let mut all = false;
-                    for r in rights.iter() {
-                        if r.evaluate(user, &db).await {
-                            all = true;
-                            break;
-                        }
+                for r in rights.iter() {
+                    if r.evaluate(user, &db).await {
+                        all = true;
+                        break;
                     }
+                }
 
                 all
             }
             Self::NoneOf(rights) => !{
                 let mut all = true;
-                    for r in rights.iter() {
-                        if !r.evaluate(user, &db).await {
-                            all = false;
-                            break;
-                        }
+                for r in rights.iter() {
+                    if !r.evaluate(user, &db).await {
+                        all = false;
+                        break;
                     }
+                }
 
                 all
             },
@@ -79,7 +79,7 @@ impl Rights {
 
 pub struct Auth<D>
 where
-    D: 'static +  SQLxSessionAuth<D> + HasPermission,
+    D: 'static + SQLxSessionAuth<D> + HasPermission,
 {
     pub rights: Rights,
     pub auth_required: bool,
@@ -110,7 +110,10 @@ where
         user: &D,
         method: &Method,
         db: Option<&mut PoolConnection<sqlx::Postgres>>,
-    ) -> bool where D: HasPermission +  SQLxSessionAuth<D> + Sync {
+    ) -> bool
+    where
+        D: HasPermission + SQLxSessionAuth<D> + Sync,
+    {
         if self.auth_required && !user.is_authenticated() {
             return false;
         }
