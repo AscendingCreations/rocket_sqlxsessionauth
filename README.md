@@ -75,7 +75,7 @@ fn main() {
 
 //Auth must be placed After SQLxSession as it needs SQLxSession to load first before it can load the current_user.
 #[get("/")]
-fn index(sqlxsession: SQLxSession, auth: SQLxAuth<User>) -> String {
+fn index(method: Method, sqlxsession: SQLxSession, auth: SQLxAuth<User>) -> String {
     let mut count: usize = sqlxsession.get("count").unwrap_or(0);
     count += 1;
     sqlxsession.set("count", count);
@@ -105,4 +105,63 @@ If you want it to always load an account you can set the anonymous_user_id og th
 
 .attach(SqlxSessionAuthFairing::<User>::new().with_anonymous_id(1))
 
+```
+
+
+This Library Also offers a Permission builder that uses Rockets Methods and String Token permissions. To use this system you must implement the HasPermission trait and 
+you must also impl SQLxSessionAuth as it uses is_authenticated.
+
+```rust
+#[rocket::async_trait]
+impl HasPermission for User {
+    async fn has(&self, perm: &String, pool: &Option<&mut PoolConnection<sqlx::Postgres>>) -> bool {
+        match &perm[..] {
+            "Token::UseAdmin" => true,
+            "Token::ModifyUser" => true,
+            _ => false,
+        }
+    }
+}
+```
+
+This is used to check if the permission Exists or not. We also have a Optional SQLx Pool connection so you can use SQL querys to see if they Exist for the User.
+the next step is to build the permission and then validate it within the function you want to check for permissions.
+
+```rust
+use rocket::http::Method;
+use rocket_sqlxsession::SQLxSession;
+use rocket_sqlxsessionauth::{Auth, Rights, SQLxAuth, SqlxSessionAuthFairing};
+
+#[get("/")]
+fn index(method: Method, sqlxsession: SQLxSession, auth: SQLxAuth<User>) -> String {
+    let current_user = auth.current_user.clone();
+
+    if let Some(cur_user) = current_user {
+        if !Auth::<User>::build(&[Method::Get], false)
+            .requires(Rights::none(&[
+                Rights::Permission("Token::UseAdmin".into()),
+                Rights::Permission("Token::ModifyPerms".into()),
+            ]))
+            .validate(&cur_user, &Method::Get, None)
+            .await
+        {
+            return Some(format!("No Permissions! for {}", cur_user.username));
+        }
+
+        let mut count: usize = sqlxsession.get("count").unwrap_or(0);
+        count += 1;
+        sqlxsession.set("count", count);
+
+        format!("{} visits, User: {}", count, cur_user.username)
+    } else {
+        //Do login and check here can do another Auth build.
+        if !auth.is_authenticated() {
+            //Set the user ID of the User to the Session so it can be Auto Loaded the next load or redirect
+            auth.login_user(2);
+            //redirect here after login if we did indeed login.
+        }
+
+        return Some("No Permissions!".to_string());
+    }
+}
 ```
