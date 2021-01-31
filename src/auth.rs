@@ -61,10 +61,10 @@ impl Rights {
                 all
             }
             Self::NoneOf(rights) => !{
-                let mut all = true;
+                let mut all = false;
                 for r in rights.iter() {
                     if !r.evaluate(user, &db).await {
-                        all = false;
+                        all = true;
                         break;
                     }
                 }
