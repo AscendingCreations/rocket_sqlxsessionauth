@@ -6,7 +6,7 @@ Auth Addon for SQLX Session.
 #![feature(proc_macro_hygiene, decl_macro)]
 #[macro_use] extern crate rocket;
 
-use rocket_sqlxsession::{SqlxSessionFairing, SQLxSession};
+use rocket_sqlxsession::{SqlxSessionFairing, SQLxSession, SqlxSessionConfig};
 use rocket_sqlxsessionauth::{SQLxAuth, SqlxSessionAuthFairing};
 use anyhow::Error;
 /// An anyhow::Result with default return type of ()
@@ -68,7 +68,7 @@ fn main() {
             .with_host("localhost")
             .with_port("5432");
 
-    rocket::ignite()
+    rocket::build()
         .attach(SqlxSessionFairing::new(config, None))
         .attach(SqlxSessionAuthFairing::<User>::new(None, None))
         .mount("/", routes![index])
