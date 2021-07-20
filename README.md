@@ -61,14 +61,16 @@ impl SQLxSessionAuth<User> for User {
 }
 
 fn main() {
-    rocket::ignite()
-        .attach(SqlxSessionFairing::new()
+    let config = SqlxSessionConfig::default()
             .with_database("databasename")
             .with_username("username")
             .with_password("password")
             .with_host("localhost")
-            .with_port("5432"))
-        .attach(SqlxSessionAuthFairing::<User>::new())
+            .with_port("5432");
+
+    rocket::ignite()
+        .attach(SqlxSessionFairing::new(config, None))
+        .attach(SqlxSessionAuthFairing::<User>::new(None, None))
         .mount("/", routes![index])
         .launch();
 }
@@ -103,12 +105,12 @@ If you want it to always load an account you can set the anonymous_user_id og th
 
 ```rust
 
-.attach(SqlxSessionAuthFairing::<User>::new().with_anonymous_id(1))
+.attach(SqlxSessionAuthFairing::<User>::new(None, Some(1)))
 
 ```
 
 
-This Library Also offers a Permission builder that uses Rockets Methods and String Token permissions. To use this system you must implement the HasPermission trait and 
+This Library Also offers a Permission builder that uses Rockets Methods and String Token permissions. To use this system you must implement the HasPermission trait and
 you must also impl SQLxSessionAuth as it uses is_authenticated.
 
 ```rust

@@ -1,9 +1,9 @@
 use rocket::{
     fairing::{self, Fairing, Info},
     http::Status,
-    outcome::Outcome,
-    request::FromRequest,
-    try_outcome, Request, Rocket, State,
+    outcome::{try_outcome, Outcome},
+    request::{FromRequest, Request},
+    Build, Rocket, State,
 };
 use rocket_sqlxsession::{SQLxSessionID, SQLxSessionStore};
 use sqlx::{pool::PoolConnection, postgres::PgPool};
@@ -112,15 +112,15 @@ where
 }
 
 #[rocket::async_trait]
-impl<'a, 'r, D> FromRequest<'a, 'r> for SQLxAuth<D>
+impl<'r, D> FromRequest<'r> for SQLxAuth<D>
 where
     D: 'static + Sync + Send + SQLxSessionAuth<D>,
 {
     type Error = ();
 
-    async fn from_request(request: &'a Request<'r>) -> Outcome<Self, (Status, Self::Error), ()> {
-        let store: State<SQLxSessionStore> = try_outcome!(request.guard().await);
-        let authpool: State<SQLxSessionAuthPool<D>> = try_outcome!(request.guard().await);
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, (Status, Self::Error), ()> {
+        let store = try_outcome!(request.guard::<&State<SQLxSessionStore>>().await);
+        let authpool = try_outcome!(request.guard::<&State<SQLxSessionAuthPool<D>>>().await);
 
         let session_id = request.local_cache(|| SQLxSessionID::new("".to_string()));
 
@@ -146,25 +146,25 @@ where
         };
 
         let current_user = {
-            if current_id.is_none() {
-                None
-            } else {
-                let uid = current_id.unwrap();
+            match current_id {
+                None => None,
+                Some(uid) => {
+                    if let Some(client) = &authpool.client {
+                        let mut guard: PoolConnection<sqlx::Postgres> =
+                            client.acquire().await.unwrap();
 
-                if let Some(client) = &authpool.client {
-                    let mut guard: PoolConnection<sqlx::Postgres> = client.acquire().await.unwrap();
+                        match D::load_user(uid, &mut guard).await {
+                            Ok(user) => Some(user),
+                            Err(_) => None,
+                        }
+                    } else {
+                        let mut guard: PoolConnection<sqlx::Postgres> =
+                            store.client.acquire().await.unwrap();
 
-                    match D::load_user(uid, &mut guard).await {
-                        Ok(user) => Some(user),
-                        Err(_) => None,
-                    }
-                } else {
-                    let mut guard: PoolConnection<sqlx::Postgres> =
-                        store.client.acquire().await.unwrap();
-
-                    match D::load_user(uid, &mut guard).await {
-                        Ok(user) => Some(user),
-                        Err(_) => None,
+                        match D::load_user(uid, &mut guard).await {
+                            Ok(user) => Some(user),
+                            Err(_) => None,
+                        }
                     }
                 }
             }
@@ -194,7 +194,7 @@ where
     D: 'static + Sync + Send + SQLxSessionAuth<D>,
 {
     fn default() -> Self {
-        Self::new()
+        Self::new(None, None)
     }
 }
 
@@ -202,29 +202,12 @@ impl<D> SqlxSessionAuthFairing<D>
 where
     D: 'static + Sync + Send + SQLxSessionAuth<D>,
 {
-    pub fn new() -> Self {
+    pub fn new(poll: Option<PgPool>, anonymous_user_id: Option<i64>) -> Self {
         Self {
-            poll: None,
-            anonymous_user_id: None,
+            poll,
+            anonymous_user_id,
             phantom: PhantomData,
         }
-    }
-
-    /// Set session auth Poll for user loading. If none set will use SQLxSession Pool.
-    ///
-    /// Call on the fairing before passing it to `rocket.attach()`
-    pub fn with_poll(mut self, poll: PgPool) -> Self {
-        self.poll = Some(poll);
-        self
-    }
-
-    /// Set session auth anonymous_user_id so if their session doesnt exist it logs them in as a Guest Account.
-    /// Otherwise current_user becomes None
-    ///
-    /// Call on the fairing before passing it to `rocket.attach()`
-    pub fn with_anonymous_id(mut self, id: i64) -> Self {
-        self.anonymous_user_id = Some(id);
-        self
     }
 }
 
@@ -236,11 +219,14 @@ where
     fn info(&self) -> Info {
         Info {
             name: "SQLxSessionAuth",
-            kind: fairing::Kind::Attach,
+            kind: fairing::Kind::Ignite,
         }
     }
 
-    async fn on_attach(&self, rocket: Rocket) -> std::result::Result<Rocket, Rocket> {
+    async fn on_ignite(
+        &self,
+        rocket: Rocket<Build>,
+    ) -> std::result::Result<Rocket<Build>, Rocket<Build>> {
         Ok(rocket.manage(SQLxSessionAuthPool::<D>::new(
             self.poll.clone(),
             self.anonymous_user_id,

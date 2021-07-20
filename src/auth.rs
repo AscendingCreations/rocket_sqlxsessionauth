@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 
 #[rocket::async_trait]
 pub trait HasPermission {
-    async fn has(&self, perm: &String, pool: &Option<&mut PoolConnection<sqlx::Postgres>>) -> bool;
+    async fn has(&self, perm: &str, pool: &Option<&mut PoolConnection<sqlx::Postgres>>) -> bool;
 }
 
 #[derive(Clone)]
@@ -41,7 +41,7 @@ impl Rights {
             Self::All(rights) => {
                 let mut all = true;
                 for r in rights.iter() {
-                    if !r.evaluate(user, &db).await {
+                    if !r.evaluate(user, db).await {
                         all = false;
                         break;
                     }
@@ -52,7 +52,7 @@ impl Rights {
             Self::Any(rights) => {
                 let mut all = false;
                 for r in rights.iter() {
-                    if r.evaluate(user, &db).await {
+                    if r.evaluate(user, db).await {
                         all = true;
                         break;
                     }
@@ -63,7 +63,7 @@ impl Rights {
             Self::NoneOf(rights) => !{
                 let mut all = false;
                 for r in rights.iter() {
-                    if r.evaluate(user, &db).await {
+                    if r.evaluate(user, db).await {
                         all = true;
                         break;
                     }
@@ -71,7 +71,7 @@ impl Rights {
 
                 all
             },
-            Self::Permission(perm) => user.has(&perm, &db).await,
+            Self::Permission(perm) => user.has(&perm[..], db).await,
             Self::None => false,
         }
     }
